@@ -76,7 +76,7 @@ bool pushIndent(IndentTable* table, off_t val)
 
 #define TIMEWAIT 1000
 
-bool waitRead(int fildes, int timeout)
+int waitRead(int fildes, int timeout)
 {
 	struct pollfd fds = {
 		.fd = fildes,
@@ -112,14 +112,22 @@ bool fillIndentTable(IndentTable* table, int fildes)
 
 			if(errno == EAGAIN)
 			{
-				if(waitRead(fildes, TIMEWAIT))
+				int opt = waitRead(fildes, TIMEWAIT);
+
+				if(opt == 1)
 				{
 					errno = 0;
 					continue;
 				}
 				else
 				{
-					perror("No data waiting to be read");
+					if(opt == -1)
+					{
+						perror("Poll fail");
+					} else
+					{
+						perror("No data	waiting to be read");
+					}
 					break;
 				}
 			}
@@ -201,15 +209,17 @@ bool printLine(int fildes, IndentTable* table, int lineNum)
 	return true;
 }
 
-bool exitTimer(int timeout)
+int exitTimer(int timeout)
 {
+	errno = 0;
+
 	static struct pollfd fds = {
 			.fd = 0, //stdin
 			.events = POLLIN,
 			.revents = 0
 	};
 
-	return poll(&fds, 1, timeout) == 1;
+	return poll(&fds, 1, timeout);
 }
 
 bool scanAndCheckLine(off_t* lineNum)
@@ -253,7 +263,23 @@ int main()
 		printf("Type line num to read within 5 sec. Type 0 to exit: ");
 		fflush(stdout);
 
-		if(exitTimer(TIMEOUT))
+		int option = exitTimer(TIMEOUT);
+
+		if (option == -1)
+		{
+			if(errno == EINTR)
+			{
+				perror("Signal in poll");
+				errno = 0;
+				continue;
+			}
+			else
+			{
+				perror("Poll fail");
+				break;
+			}
+		}
+		else if(option != 0)
 		{
 			if(!scanAndCheckLine(&lineNum))
 			{
@@ -271,7 +297,24 @@ int main()
 		}
 	}
 
-	close(fildes);
+	errno = 0;
+	while(1)
+	{
+		if(close(fildes) == -1)
+		{
+			if (errno == EINTR)
+			{
+				perror("Signal caught");
+				errno = 0;
+				continue;
+			}
+
+			perror("Close fail");
+			break;
+		} else
+			break;
+	}
+
 	destroyIndentTable(&table);
 
 	return 0;
