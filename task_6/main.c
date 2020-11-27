@@ -74,8 +74,24 @@ bool pushIndent(IndentTable* table, off_t val)
 	return true;
 }
 
+#define TIMEWAIT 1000
+
+bool waitRead(int fildes, int timeout)
+{
+	struct pollfd fds = {
+		.fd = fildes,
+		.events = POLLIN,
+		.revents = 0
+	};
+
+	return poll(&fds, 1, timeout);
+}
+
+
 bool fillIndentTable(IndentTable* table, int fildes)
 {
+	errno = 0;
+
 	char buff[BUFF_SIZE + 1] = {0};
 	off_t currPos = 0;
 	ssize_t readCount = 0;
@@ -87,8 +103,29 @@ bool fillIndentTable(IndentTable* table, int fildes)
 	{
 		if(readCount == -1)
 		{
-			fcntl(fildes, F_SETFL, oldFl);
+			if (errno == EINTR)
+			{
+				perror("Signal caught in read");
+				errno = 0;
+				continue;
+			}
+
+			if(errno == EAGAIN)
+			{
+				if(waitRead(fildes, TIMEWAIT))
+				{
+					errno = 0;
+					continue;
+				}
+				else
+				{
+					perror("No data waiting to be read");
+					break;
+				}
+			}
+
 			perror("Error in reading file");
+			fcntl(fildes, F_SETFL, oldFl);
 			return false;
 		}
 
