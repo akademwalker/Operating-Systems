@@ -1,0 +1,5 @@
+abra
+bacardi
+calloc
+death
+equality
