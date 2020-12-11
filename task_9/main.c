@@ -37,6 +37,8 @@ int main()
 				errno = 0;
 				continue;
 			}
+			perror("Wait failure");
+			return 1;
 		}
 
 		printf("Parent end\n");
