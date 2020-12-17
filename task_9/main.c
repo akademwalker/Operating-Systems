@@ -18,11 +18,9 @@ int main()
 	//child
 	if (pid == 0)
 	{
-		if(execlp("cat", "cat", "text.txt", (char*) 0) == -1)
-		{
-			perror("Execute cat failure");
-			return 1;
-		}
+		execlp("cat", "cat", "text.txt", (char*) 0);
+		perror("Execute cat failure");
+		return 1;
 	} else
 	//parent
 	{
